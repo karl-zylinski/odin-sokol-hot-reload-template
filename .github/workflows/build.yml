@@ -1,0 +1,163 @@
+name: Build
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+env:
+  itchio_api_key: ${{ secrets.ITCHIO_API_KEY }}
+  itchio_project: name/project-name
+
+# https://github.com/marketplace/actions/setup-odin
+# https://github.com/mymindstorm/setup-emsdk
+# https://github.com/marketplace/actions/itch-io-upload
+# https://github.com/marketplace/actions/cache-apt-packages
+
+jobs:
+  build_linux:
+    name: linux + wasm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: laytan/setup-odin@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: mymindstorm/setup-emsdk@v14
+      - uses: actions/checkout@v4
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libglu1-mesa-dev mesa-common-dev xorg-dev libasound2-dev
+          version: 1.2
+
+      - name: Build desktop
+        run: ./build.py -release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{runner.os}}-${{runner.arch}}-${{ github.sha }}
+          path: build/release
+
+      - name: Build web
+        run: ./build.py -web
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wasm-${{ github.sha }}
+          path: build/web
+
+  build_macos:
+    name: macos
+    strategy:
+      matrix:
+        os: [macos-13, macos-15]
+    runs-on: ${{matrix.os}}
+    steps:
+      - uses: laytan/setup-odin@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
+      - name: Build desktop
+        run: ./build.py -release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{runner.os}}-${{runner.arch}}-${{ github.sha }}
+          path: build/release
+
+  build_windows:
+    name: windows
+    runs-on: windows-latest
+    steps:
+      - uses: laytan/setup-odin@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Build desktop
+        run: python .\build.py -release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{runner.os}}-${{runner.arch}}-${{ github.sha }}
+          path: build\release
+
+  itch_upload:
+    if: ${{ github.ref == 'refs/heads/master' }}
+    name: itch.io
+    runs-on: ubuntu-latest
+    needs: [build_linux, build_macos, build_windows]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: robpc/itchio-upload-action@v1
+        if: env.itchio_api_key
+        with:
+          path: .
+          project: ${{ env.itchio_project }}
+          api-key: ${{ env.itchio_api_key }}
+          channel: src
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: wasm-${{ github.sha }}
+          path: itch/wasm
+      - uses: robpc/itchio-upload-action@v1
+        if: env.itchio_api_key
+        with:
+          path: itch/wasm
+          project: ${{ env.itchio_project }}
+          api-key: ${{ env.itchio_api_key }}
+          channel: HTML
+      - uses: robpc/itchio-upload-action@v1
+        if: env.itchio_api_key
+        with:
+          path: itch/wasm
+          project: ${{ env.itchio_project }}
+          api-key: ${{ env.itchio_api_key }}
+          channel: wasm
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Linux-X64-${{ github.sha }}
+          path: itch/linux-x64
+      - uses: robpc/itchio-upload-action@v1
+        if: env.itchio_api_key
+        with:
+          path: itch/linux-x64
+          project: ${{ env.itchio_project }}
+          api-key: ${{ env.itchio_api_key }}
+          channel: itch/linux-x64
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: macOS-ARM64-${{ github.sha }}
+          path: itch/macos-arm64
+      - uses: robpc/itchio-upload-action@v1
+        if: env.itchio_api_key
+        with:
+          path: itch/macos-arm64
+          project: ${{ env.itchio_project }}
+          api-key: ${{ env.itchio_api_key }}
+          channel: macos-arm64
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: macOS-X64-${{ github.sha }}
+          path: itch/macos-x64
+      - uses: robpc/itchio-upload-action@v1
+        if: env.itchio_api_key
+        with:
+          path: itch/macos-x64
+          project: ${{ env.itchio_project }}
+          api-key: ${{ env.itchio_api_key }}
+          channel: macos-x64
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: Windows-X64-${{ github.sha }}
+          path: itch/windows-x64
+      - uses: robpc/itchio-upload-action@v1
+        if: env.itchio_api_key
+        with:
+          path: itch/windows-x64
+          project: ${{ env.itchio_project }}
+          api-key: ${{ env.itchio_api_key }}
+          channel: windows-x64
