@@ -8,7 +8,7 @@
 	"build_systems":
 	[
 		{
-			"name": "Odin + Raylib + Hot Reload template",
+			"name": "Odin + Sokol + Hot Reload template",
 			"working_dir": "$project_path",
 			"shell_cmd": "python build.py -hot-reload -run -debug",
 			
@@ -22,7 +22,7 @@
 				},
 				{
 					"name": "web",
-					"shell_cmd": "python build.py -web -emsdk-path C:\\sdk\\emsdk",
+					"shell_cmd": "python build.py -web",
 				},
 			],
 		}
