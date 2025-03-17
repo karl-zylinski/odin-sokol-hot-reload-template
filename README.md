@@ -53,9 +53,6 @@ If you want web build support, then you either need `emcc` in your path _or_ you
 
 Check the web developer tools console for any additional errors. Chrome tends to have better error messages than Firefox.
 
-> [!WARNING]
-> There's a bug in Odin right now that breaks the web build. As a temporary workaround, change `game.wasm.o` to `gamegame.wasm.o` in the build script.
-
 ## Native release builds
 
 `build.py -release` makes a native release build of your game (no hot reloading).
