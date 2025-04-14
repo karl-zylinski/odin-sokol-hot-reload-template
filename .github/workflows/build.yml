@@ -11,7 +11,7 @@ on:
 
 jobs:
   build_linux:
-    name: linux + wasm
+    name: Linux
     runs-on: ubuntu-latest
     steps:
       - uses: laytan/setup-odin@v2
@@ -28,14 +28,20 @@ jobs:
       - name: Build release
         run: ./build.py -release
 
-      - name: Build debug
-        run: ./build.py -debug
-
       - name: Build web
         run: ./build.py -web
 
+      - name: Build hot reload (debug)
+        run: ./build.py -hot-reload -debug
+
+      - name: Build release
+        run: ./build.py -release -debug
+
+      - name: Build web
+        run: ./build.py -web -debug
+
   build_macos:
-    name: macos
+    name: MacOS
     strategy:
       matrix:
         os: [macos-13, macos-15]
@@ -55,14 +61,20 @@ jobs:
       - name: Build release
         run: ./build.py -release
 
-      - name: Build debug
-        run: ./build.py -debug
-
       - name: Build web
         run: ./build.py -web
 
+      - name: Build hot reload (debug)
+        run: ./build.py -hot-reload -debug
+
+      - name: Build release
+        run: ./build.py -release -debug
+
+      - name: Build web
+        run: ./build.py -web -debug
+
   build_windows:
-    name: windows
+    name: Windows
     runs-on: windows-latest
     steps:
       - uses: laytan/setup-odin@v2
@@ -71,17 +83,26 @@ jobs:
 
       - uses: mymindstorm/setup-emsdk@v14
 
+      - uses: actions/setup-python@v5
+
       - uses: actions/checkout@v4
+
       - uses: ilammy/msvc-dev-cmd@v1
 
       - name: Build hot reload
-        run: .\build.py -hot-reload
+        run: python build.py -hot-reload
 
       - name: Build release
-        run: .\build.py -release
-
-      - name: Build debug
-        run: .\build.py -debug
+        run: python build.py -release
 
       - name: Build web
-        run: .\build.py -web
+        run: python build.py -web
+
+      - name: Build hot reload (debug)
+        run: python build.py -hot-reload -debug
+
+      - name: Build release
+        run: python build.py -release -debug
+
+      - name: Build web
+        run: python build.py -web -debug
