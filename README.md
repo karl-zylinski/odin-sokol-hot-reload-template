@@ -53,9 +53,6 @@ If you want web build support, then you either need `emcc` in your path _or_ you
 
 Check the web developer tools console for any additional errors. Chrome tends to have better error messages than Firefox.
 
-> [!WARNING]
-> There's a bug in Odin right now that breaks the web build. As a temporary workaround, change `game.wasm.o` to `gamegame.wasm.o` in the build script.
-
 ## Native release builds
 
 `build.py -release` makes a native release build of your game (no hot reloading).
@@ -88,3 +85,36 @@ Add `-debug` when running `build.py` to create debuggable binaries.
 
 - Add `-gl` when running `build.py` to force OpenGL
 - Remove the `set -e` lines from `source/sokol/build_clibs_macos.sh` and `source/sokol/build_clibs_macos_dylib.sh` and re-run `build.py -compile-sokol`. This will make those scripts not crash when it fails to compile some metal-related Sokol libraries.
+
+### I get `panic: wasm_allocator: initial memory could not be allocated`
+
+You probably have a global variable that allocates dynamic memory. Move that allocation into the `game_init` proc. This could also happen if initialize dynamic arrays or maps in the global file scope, like so:
+
+```
+arr := [dynamic]int { 2, 3, 4 }
+```
+
+In that case you can declare it and do the initialization in the `init` proc instead:
+
+```
+arr: [dynamic]int
+
+main :: proc() {
+  arr = { 2, 3, 4 }
+
+  // bla bla
+}
+```
+
+This happens because the context hasn't been initialized with the correct allocator yet.
+
+### I get `RuntimeError: memory access out of bounds`
+
+Try modifying the `build.py` script and add these flags where it runs `emcc`:
+```
+-sALLOW_MEMORY_GROWTH=1 -sINITIAL_HEAP=16777216 -sSTACK_SIZE=65536
+```
+The numbers above are the default values, try bigger ones and see if it helps.
+
+### Error: `emcc: error: build\web\index.data --from-emcc --preload assets' failed (returned 1)`
+You might be missing the `assets` folder. It must have at least a single file inside it. You can also remove `--preload assets` from the `build.py` script.
