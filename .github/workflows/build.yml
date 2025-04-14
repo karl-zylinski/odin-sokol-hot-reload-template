@@ -21,6 +21,11 @@ jobs:
       - uses: mymindstorm/setup-emsdk@v14
       
       - uses: actions/checkout@v4
+
+      - uses: awalsh128/cache-apt-pkgs-action@latest
+        with:
+          packages: libglu1-mesa-dev mesa-common-dev xorg-dev libasound2-dev
+          version: 1.2
       
       - name: Build hot reload
         run: ./build.py -hot-reload
@@ -34,10 +39,10 @@ jobs:
       - name: Build hot reload (debug)
         run: ./build.py -hot-reload -debug
 
-      - name: Build release
+      - name: Build release (debug)
         run: ./build.py -release -debug
 
-      - name: Build web
+      - name: Build web (debug)
         run: ./build.py -web -debug
 
   build_macos:
@@ -67,10 +72,10 @@ jobs:
       - name: Build hot reload (debug)
         run: ./build.py -hot-reload -debug
 
-      - name: Build release
+      - name: Build release (debug)
         run: ./build.py -release -debug
 
-      - name: Build web
+      - name: Build web (debug)
         run: ./build.py -web -debug
 
   build_windows:
@@ -101,8 +106,8 @@ jobs:
       - name: Build hot reload (debug)
         run: python build.py -hot-reload -debug
 
-      - name: Build release
+      - name: Build release (debug)
         run: python build.py -release -debug
 
-      - name: Build web
+      - name: Build web (debug)
         run: python build.py -web -debug
