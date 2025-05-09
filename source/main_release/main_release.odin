@@ -10,22 +10,17 @@ import "core:log"
 import "core:os"
 import "core:os/os2"
 import "base:runtime"
-
+import "core:mem"
 import game ".."
 import sapp "../sokol/app"
+
+_ :: mem
 
 USE_TRACKING_ALLOCATOR :: #config(USE_TRACKING_ALLOCATOR, false)
 
 main :: proc() {
 	if exe_dir, exe_dir_err := os2.get_executable_directory(context.temp_allocator); exe_dir_err == nil {
 		os2.set_working_directory(exe_dir)
-	}
-
-	when USE_TRACKING_ALLOCATOR {
-		default_allocator := context.allocator
-		tracking_allocator: Tracking_Allocator
-		tracking_allocator_init(&tracking_allocator, default_allocator)
-		context.allocator = allocator_from_tracking_allocator(&tracking_allocator)
 	}
 
 	mode: int = 0
@@ -40,9 +35,17 @@ main :: proc() {
 		os.stderr = logh
 	}
 
-	logger := logh_err == os.ERROR_NONE ? log.create_file_logger(logh) : log.create_console_logger()
+	logger_alloc := context.allocator
+	logger := logh_err == os.ERROR_NONE ? log.create_file_logger(logh, allocator = logger_alloc) : log.create_console_logger(allocator = logger_alloc)
 	context.logger = logger
 	custom_context = context
+
+	when USE_TRACKING_ALLOCATOR {
+		default_allocator := context.allocator
+		tracking_allocator: mem.Tracking_Allocator
+		mem.tracking_allocator_init(&tracking_allocator, default_allocator)
+		context.allocator = mem.tracking_allocator(&tracking_allocator)
+	}
 
 	app_desc := game.game_app_default_desc()
 
@@ -55,16 +58,16 @@ main :: proc() {
 
 	free_all(context.temp_allocator)
 
-	if logh_err == os.ERROR_NONE {
-		log.destroy_file_logger(logger)
-	}
-
 	when USE_TRACKING_ALLOCATOR {
-		for key, value in tracking_allocator.allocation_map {
-			log.error("%v: Leaked %v bytes\n", value.location, value.size)
+		for _, value in tracking_allocator.allocation_map {
+			log.errorf("%v: Leaked %v bytes\n", value.location, value.size)
 		}
 
-		tracking_allocator_destroy(&tracking_allocator)
+		mem.tracking_allocator_destroy(&tracking_allocator)
+	}
+
+	if logh_err == os.ERROR_NONE {
+		log.destroy_file_logger(logger, logger_alloc)
 	}
 }
 
