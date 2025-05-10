@@ -75,11 +75,6 @@ if args.web:
 if num_build_modes > 1:
     print("Can only use one of: -hot-reload, -release and -web.")
     exit(1)
-elif num_build_modes == 0 and not args.update_sokol and not args.compile_sokol:
-    print(
-        "You must use one of: -hot-reload, -release, -web, -update-sokol or -compile-sokol."
-    )
-    exit(1)
 
 SYSTEM = platform.system()
 IS_WINDOWS = SYSTEM == "Windows"
@@ -113,7 +108,7 @@ def main():
         exe_path = build_release()
     elif args.web:
         exe_path = build_web()
-    elif args.hot_reload:
+    else:
         exe_path = build_hot_reload()
 
     if exe_path != "" and args.run:
