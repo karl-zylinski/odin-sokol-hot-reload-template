@@ -517,13 +517,12 @@ def compile_sokol():
 
         if emsdk_env:
             execute(emsdk_env + " && build_clibs_wasm.bat")
+        elif shutil.which("emcc.bat"):
+            execute("build_clibs_wasm.bat")
         else:
-            if shutil.which("emcc.bat"):
-                execute("build_clibs_wasm.bat")
-            else:
-                print(
-                    "emcc not in PATH, skipping building of WASM libs. Tip: You can also use -emsdk-path to specify where emscripten lives."
-                )
+            print(
+                "emcc not in PATH, skipping building of WASM libs. Tip: You can also use -emsdk-path to specify where emscripten lives."
+            )
 
     elif IS_LINUX:
         execute("bash build_clibs_linux.sh")
@@ -532,8 +531,9 @@ def compile_sokol():
         if emsdk_env:
             os.environ["EMSDK_QUIET"] = "1"
             build_wasm_prefix += emsdk_env + " && "
-        elif shutil.which("emcc") is not None:
             execute('bash -c "' + build_wasm_prefix + ' bash build_clibs_wasm.sh"')
+        elif shutil.which("emcc") is not None:
+            execute("bash build_clibs_wasm.sh")
         else:
             print(
                 "emcc not in PATH, skipping building of WASM libs. Tip: You can also use -emsdk-path to specify where emscripten lives."
@@ -547,8 +547,9 @@ def compile_sokol():
         if emsdk_env:
             os.environ["EMSDK_QUIET"] = "1"
             build_wasm_prefix += emsdk_env + " && "
-        elif shutil.which("emcc") is not None:
             execute('bash -c "' + build_wasm_prefix + ' bash build_clibs_wasm.sh"')
+        elif shutil.which("emcc") is not None:
+            execute("bash build_clibs_wasm.sh")
         else:
             print(
                 "emcc not in PATH, skipping building of WASM libs. Tip: You can also use -emsdk-path to specify where emscripten lives."
