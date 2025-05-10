@@ -1,5 +1,36 @@
 #!/usr/bin/env python3
 
+import platform
+from enum import StrEnum
+
+
+class Sys(StrEnum):
+    win = "Windows"
+    osx = "Darwin"
+    linux = "Linux"
+
+    def dll(self):
+        match self:
+            case Sys.win:
+                return ".dll"
+            case Sys.osx:
+                return ".dylib"
+            case Sys.linux:
+                return ".so"
+
+    def exec(self):
+        if self is Sys.win:
+            return ".exe"
+
+        return ".bin"
+
+
+try:
+    SYSTEM = Sys[platform.system()]
+except KeyError as e:
+    msg = "Unsupported platform."
+    raise Exception(msg) from e
+
 import argparse
 
 args_parser = argparse.ArgumentParser(
@@ -54,123 +85,105 @@ args_parser.add_argument(
     help="Force OpenGL Sokol backend. Useful on some older computers, for example old MacBooks that don't support Metal.",
 )
 
+args = args_parser.parse_args()
+
+num_build_modes = sum(map(int, [args.hot_reload, args.release, args.web]))
+
+if num_build_modes > 1:
+    print("Can only use one of: -hot-reload, -release and -web.")
+    exit(1)
+elif not (num_build_modes or args.update_sokol or args.compile_sokol):
+    print(
+        "You must use one of: -hot-reload, -release, -web, -update-sokol or -compile-sokol."
+    )
+    exit(1)
+
 import functools
 import os
-import platform
 import shutil
 import subprocess
 import urllib.request
 import zipfile
 
-args = args_parser.parse_args()
-
-num_build_modes = 0
-if args.hot_reload:
-    num_build_modes += 1
-if args.release:
-    num_build_modes += 1
-if args.web:
-    num_build_modes += 1
-
-if num_build_modes > 1:
-    print("Can only use one of: -hot-reload, -release and -web.")
-    exit(1)
-
-SYSTEM = platform.system()
-IS_WINDOWS = SYSTEM == "Windows"
-IS_OSX = SYSTEM == "Darwin"
-IS_LINUX = SYSTEM == "Linux"
-
-assert IS_WINDOWS or IS_OSX or IS_LINUX, "Unsupported platform."
+SOKOL_PATH = "source/sokol"
+SOKOL_SHDC_PATH = "sokol-shdc"
 
 
 def main():
-    do_update = args.update_sokol
-
-    # Looks like a fresh setup, no sokol anywhere! Trigger automatic update.
-    if not os.path.exists(SOKOL_PATH) and not os.path.exists(SOKOL_SHDC_PATH):
-        do_update = True
-
-    if do_update:
+    if args.update_sokol or not (
+        # Looks like a fresh setup, no sokol anywhere! Trigger automatic update.
+        os.path.exists(SOKOL_PATH) or os.path.exists(SOKOL_SHDC_PATH)
+    ):
         update_sokol()
-
-    do_compile = do_update or args.compile_sokol
-
-    if do_compile:
+        compile_sokol()
+    elif args.compile_sokol:
         compile_sokol()
 
     if not args.no_shader_compile:
         build_shaders()
 
-    exe_path = ""
+    if not args.web:
+        if args.release:
+            exe_path = build_release()
+        else:
+            exe_path = build_hot_reload()
 
-    if args.release:
-        exe_path = build_release()
-    elif args.web:
-        exe_path = build_web()
+        if exe_path and args.run:
+            print("Starting " + exe_path)
+            subprocess.Popen([exe_path])
     else:
-        exe_path = build_hot_reload()
-
-    if exe_path != "" and args.run:
-        print("Starting " + exe_path)
-        subprocess.Popen(exe_path)
+        build_web()
 
 
 def build_shaders():
     print("Building shaders...")
     shdc = get_shader_compiler()
 
-    shaders = []
+    if args.web:
+        langs = "glsl300es"
+    else:
+        match SYSTEM:
+            case Sys.win:
+                langs = "hlsl5"
+            case Sys.linux:
+                langs = "glsl430"
+            case Sys.osx:
+                langs = "glsl410" if args.gl else "metal_macos"
 
-    for root, dirs, files in os.walk("source"):
-        for file in files:
-            if file.endswith(".glsl"):
-                shaders.append(os.path.join(root, file))
-
-    for s in shaders:
+    for s in [
+        os.path.join(root, file)
+        for root, dirs, files in os.walk("source")
+        for file in files
+        if file.endswith(".glsl")
+    ]:
         out_dir = os.path.dirname(s)
         out_filename = os.path.basename(s)
         out = out_dir + "/gen__" + (out_filename.removesuffix("glsl") + "odin")
-
-        langs = ""
-
-        if args.web:
-            langs = "glsl300es"
-        elif IS_WINDOWS:
-            langs = "hlsl5"
-        elif IS_LINUX:
-            langs = "glsl430"
-        elif IS_OSX:
-            langs = "glsl410" if args.gl else "metal_macos"
 
         execute(shdc + " -i %s -o %s -l %s -f sokol_odin" % (s, out, langs))
 
 
 def get_shader_compiler():
-    path = ""
-
     arch = platform.machine()
 
-    if IS_WINDOWS:
-        path = "sokol-shdc\\win32\\sokol-shdc.exe"
-    elif IS_LINUX:
-        if "arm64" in arch or "aarch64" in arch:
-            path = "sokol-shdc/linux_arm64/sokol-shdc"
-        else:
-            path = "sokol-shdc/linux/sokol-shdc"
-    elif IS_OSX:
-        if "arm64" in arch or "aarch64" in arch:
-            path = "sokol-shdc/osx_arm64/sokol-shdc"
-        else:
-            path = "sokol-shdc/osx/sokol-shdc"
+    match SYSTEM:
+        case Sys.win:
+            path = "sokol-shdc\\win32\\sokol-shdc.exe"
+        case Sys.linux:
+            if "arm64" in arch or "aarch64" in arch:
+                path = "sokol-shdc/linux_arm64/sokol-shdc"
+            else:
+                path = "sokol-shdc/linux/sokol-shdc"
+        case Sys.osx:
+            if "arm64" in arch or "aarch64" in arch:
+                path = "sokol-shdc/osx_arm64/sokol-shdc"
+            else:
+                path = "sokol-shdc/osx/sokol-shdc"
 
     assert os.path.exists(path), (
         "Could not find shader compiler. Try running this script with update-sokol parameter"
     )
     return path
-
-
-path_join = os.path.join
 
 
 def build_hot_reload():
@@ -179,16 +192,12 @@ def build_hot_reload():
     if not os.path.exists(out_dir):
         make_dirs(out_dir)
 
-    exe = "game_hot_reload" + executable_extension()
-    dll_final_name = out_dir + "/game" + dll_extension()
+    exe = "game_hot_reload" + SYSTEM.exec()
+    dll_final_name = out_dir + "/game" + SYSTEM.dll()
     dll = dll_final_name
 
-    if IS_LINUX or IS_OSX:
-        dll = out_dir + "/game_tmp" + dll_extension()
-
-    # Only used on windows
-    pdb_dir = out_dir + "/game_pdbs"
-    pdb_number = 0
+    if SYSTEM is not Sys.win:
+        dll = out_dir + "/game_tmp" + SYSTEM.dll()
 
     dll_extra_args = ""
 
@@ -200,7 +209,10 @@ def build_hot_reload():
 
     game_running = process_exists(exe)
 
-    if IS_WINDOWS:
+    if SYSTEM is Sys.win:
+        pdb_dir = out_dir + "/game_pdbs"
+        pdb_number = 0
+
         if not game_running:
             out_dir_files = os.listdir(out_dir)
 
@@ -233,7 +245,7 @@ def build_hot_reload():
         % (dll, dll_extra_args)
     )
 
-    if IS_LINUX or IS_OSX:
+    if SYSTEM is not Sys.win:
         os.rename(dll, dll_final_name)
 
     if game_running:
@@ -246,7 +258,7 @@ def build_hot_reload():
 
     exe_extra_args = ""
 
-    if IS_WINDOWS:
+    if SYSTEM is Sys.win:
         exe_extra_args += " -pdb-name:%s/main_hot_reload.pdb" % out_dir
 
     if args.debug:
@@ -261,7 +273,7 @@ def build_hot_reload():
         % (exe, exe_extra_args)
     )
 
-    if IS_WINDOWS:
+    if SYSTEM is Sys.win:
         dll_name = (
             "sokol_dll_windows_x64_d3d11_debug.dll"
             if args.debug
@@ -272,7 +284,7 @@ def build_hot_reload():
             print("Copying %s" % dll_name)
             shutil.copyfile(SOKOL_PATH + "/" + dll_name, dll_name)
 
-    if IS_OSX:
+    if SYSTEM is Sys.osx:
         dylib_folder = "source/sokol/dylib"
 
         if not os.path.exists(dylib_folder):
@@ -311,7 +323,7 @@ def build_release():
 
     make_dirs(out_dir)
 
-    exe = out_dir + "/game_release" + executable_extension()
+    exe = out_dir + "/game_release" + SYSTEM.exec()
 
     print("Building " + exe + "...")
 
@@ -320,7 +332,7 @@ def build_release():
     if not args.debug:
         extra_args += " -no-bounds-check -o:speed"
 
-        if IS_WINDOWS:
+        if SYSTEM is Sys.win:
             extra_args += " -subsystem:windows"
     else:
         extra_args += " -debug"
@@ -393,7 +405,7 @@ def build_web():
     emsdk_env = get_emscripten_env_command()
 
     if emsdk_env:
-        if IS_WINDOWS:
+        if SYSTEM is Sys.win:
             emcc_command = emsdk_env + " && " + emcc_command
         else:
             emcc_command = 'bash -c "' + emsdk_env + " && " + emcc_command + '"'
@@ -416,27 +428,6 @@ def execute(cmd):
     if res != 0:
         print("Failed running:" + cmd)
         exit(1)
-
-
-def dll_extension():
-    if IS_WINDOWS:
-        return ".dll"
-
-    if IS_OSX:
-        return ".dylib"
-
-    return ".so"
-
-
-def executable_extension():
-    if IS_WINDOWS:
-        return ".exe"
-
-    return ".bin"
-
-
-SOKOL_PATH = "source/sokol"
-SOKOL_SHDC_PATH = "sokol-shdc"
 
 
 def update_sokol():
@@ -479,13 +470,10 @@ def update_sokol():
                 temp_folder + "/sokol-tools-bin-master/bin", SOKOL_SHDC_PATH
             )
 
-        if IS_LINUX:
-            execute("chmod +x sokol-shdc/linux/sokol-shdc")
-            execute("chmod +x sokol-shdc/linux_arm64/sokol-shdc")
-
-        if IS_OSX:
-            execute("chmod +x sokol-shdc/osx/sokol-shdc")
-            execute("chmod +x sokol-shdc/osx_arm64/sokol-shdc")
+        if SYSTEM is not Sys.win:
+            lsys = SYSTEM.value.lower()
+            execute(f"chmod +x sokol-shdc/{lsys}/sokol-shdc")
+            execute(f"chmod +x sokol-shdc/{lsys}_arm64/sokol-shdc")
 
         os.remove(temp_zip)
         shutil.rmtree(temp_folder)
@@ -502,53 +490,53 @@ def compile_sokol():
 
     print("Building Sokol C libraries...")
 
-    if IS_WINDOWS:
-        if shutil.which("cl.exe") is not None:
-            execute("build_clibs_windows.cmd")
-        else:
-            print(
-                "cl.exe not in PATH. Try re-running build.py with flag -compile-sokol from a Visual Studio command prompt."
-            )
+    match SYSTEM:
+        case Sys.win:
+            if shutil.which("cl.exe") is not None:
+                execute("build_clibs_windows.cmd")
+            else:
+                print(
+                    "cl.exe not in PATH. Try re-running build.py with flag -compile-sokol from a Visual Studio command prompt."
+                )
 
-        if emsdk_env:
-            execute(emsdk_env + " && build_clibs_wasm.bat")
-        elif shutil.which("emcc.bat"):
-            execute("build_clibs_wasm.bat")
-        else:
-            print(
-                "emcc not in PATH, skipping building of WASM libs. Tip: You can also use -emsdk-path to specify where emscripten lives."
-            )
+            if emsdk_env:
+                execute(emsdk_env + " && build_clibs_wasm.bat")
+            elif shutil.which("emcc.bat"):
+                execute("build_clibs_wasm.bat")
+            else:
+                print(
+                    "emcc not in PATH, skipping building of WASM libs. Tip: You can also use -emsdk-path to specify where emscripten lives."
+                )
 
-    elif IS_LINUX:
-        execute("bash build_clibs_linux.sh")
+        case Sys.linux:
+            execute("bash build_clibs_linux.sh")
 
-        build_wasm_prefix = ""
-        if emsdk_env:
-            os.environ["EMSDK_QUIET"] = "1"
-            build_wasm_prefix += emsdk_env + " && "
-            execute('bash -c "' + build_wasm_prefix + ' bash build_clibs_wasm.sh"')
-        elif shutil.which("emcc") is not None:
-            execute("bash build_clibs_wasm.sh")
-        else:
-            print(
-                "emcc not in PATH, skipping building of WASM libs. Tip: You can also use -emsdk-path to specify where emscripten lives."
-            )
+            build_wasm_prefix = ""
+            if emsdk_env:
+                os.environ["EMSDK_QUIET"] = "1"
+                build_wasm_prefix += emsdk_env + " && "
+                execute('bash -c "' + build_wasm_prefix + ' bash build_clibs_wasm.sh"')
+            elif shutil.which("emcc") is not None:
+                execute("bash build_clibs_wasm.sh")
+            else:
+                print(
+                    "emcc not in PATH, skipping building of WASM libs. Tip: You can also use -emsdk-path to specify where emscripten lives."
+                )
+        case Sys.osx:
+            execute("bash build_clibs_macos.sh")
+            execute("bash build_clibs_macos_dylib.sh")
 
-    elif IS_OSX:
-        execute("bash build_clibs_macos.sh")
-        execute("bash build_clibs_macos_dylib.sh")
-
-        build_wasm_prefix = ""
-        if emsdk_env:
-            os.environ["EMSDK_QUIET"] = "1"
-            build_wasm_prefix += emsdk_env + " && "
-            execute('bash -c "' + build_wasm_prefix + ' bash build_clibs_wasm.sh"')
-        elif shutil.which("emcc") is not None:
-            execute("bash build_clibs_wasm.sh")
-        else:
-            print(
-                "emcc not in PATH, skipping building of WASM libs. Tip: You can also use -emsdk-path to specify where emscripten lives."
-            )
+            build_wasm_prefix = ""
+            if emsdk_env:
+                os.environ["EMSDK_QUIET"] = "1"
+                build_wasm_prefix += emsdk_env + " && "
+                execute('bash -c "' + build_wasm_prefix + ' bash build_clibs_wasm.sh"')
+            elif shutil.which("emcc") is not None:
+                execute("bash build_clibs_wasm.sh")
+            else:
+                print(
+                    "emcc not in PATH, skipping building of WASM libs. Tip: You can also use -emsdk-path to specify where emscripten lives."
+                )
 
     os.chdir(owd)
 
@@ -557,25 +545,19 @@ def get_emscripten_env_command():
     if args.emsdk_path is None:
         return None
 
-    if IS_WINDOWS:
+    if SYSTEM is Sys.win:
         return os.path.join(args.emsdk_path, "emsdk_env.bat")
-    elif IS_LINUX or IS_OSX:
-        return "source " + os.path.join(args.emsdk_path, "emsdk_env.sh")
-
-    return None
+    return "source " + os.path.join(args.emsdk_path, "emsdk_env.sh")
 
 
 def process_exists(process_name):
-    if IS_WINDOWS:
+    if SYSTEM is Sys.win:
         call = "TASKLIST", "/NH", "/FI", "imagename eq %s" % process_name
         return process_name in str(subprocess.check_output(call))
-    else:
-        out = subprocess.run(
-            ["pgrep", "-f", process_name], capture_output=True, text=True
-        ).stdout
-        return out != ""
-
-    return False
+    out = subprocess.run(
+        ["pgrep", "-f", process_name], capture_output=True, text=True
+    ).stdout
+    return out != ""
 
 
 def make_dirs(path):
