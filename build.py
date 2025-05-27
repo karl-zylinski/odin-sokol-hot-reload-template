@@ -103,7 +103,7 @@ def build_shaders():
 		if args.web:
 			langs = "glsl300es"
 		elif IS_WINDOWS:
-			langs = "hlsl5"
+			langs = "glsl430" if args.gl else "hlsl5"
 		elif IS_LINUX:
 			langs = "glsl430"
 		elif IS_OSX:
