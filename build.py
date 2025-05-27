@@ -218,7 +218,9 @@ def build_hot_reload():
 	execute("odin build source/main_hot_reload -strict-style -define:SOKOL_DLL=true -vet -out:%s %s" % (exe, exe_extra_args))
 
 	if IS_WINDOWS:
-		dll_name = "sokol_dll_windows_x64_d3d11_debug.dll" if args.debug else "sokol_dll_windows_x64_d3d11_release.dll"
+		gfxapi = "gl" if args.gl else "d3d11"
+		release_type = "debug" if args.debug else "release"
+		dll_name = "sokol_dll_windows_x64_%s_%s.dll" % (gfxapi, release_type)
 
 		if not os.path.exists(dll_name):
 			print("Copying %s" % dll_name)
