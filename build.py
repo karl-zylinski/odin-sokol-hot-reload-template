@@ -295,6 +295,7 @@ def build_web():
 	emcc_files = [
 		"%s/game.wasm.o" % out_dir,
 		"source/sokol/app/sokol_app_wasm_gl_" + wasm_lib_suffix,
+		"source/sokol/audio/sokol_audio_wasm_gl_" + wasm_lib_suffix,
 		"source/sokol/glue/sokol_glue_wasm_gl_" + wasm_lib_suffix,
 		"source/sokol/gfx/sokol_gfx_wasm_gl_" + wasm_lib_suffix,
 		"source/sokol/shape/sokol_shape_wasm_gl_" + wasm_lib_suffix,
