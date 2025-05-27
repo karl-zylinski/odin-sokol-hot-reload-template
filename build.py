@@ -218,11 +218,12 @@ def build_hot_reload():
 	execute("odin build source/main_hot_reload -strict-style -define:SOKOL_DLL=true -vet -out:%s %s" % (exe, exe_extra_args))
 
 	if IS_WINDOWS:
-		dll_name = "sokol_dll_windows_x64_d3d11_debug.dll" if args.debug else "sokol_dll_windows_x64_d3d11_release.dll"
-
-		if not os.path.exists(dll_name):
-			print("Copying %s" % dll_name)
-			shutil.copyfile(SOKOL_PATH + "/" + dll_name, dll_name)
+		gfxapi = "gl" if args.gl else "d3d11"
+		release_type = "debug" if args.debug else "release"
+		dll_name = "sokol_dll_windows_x64_%s_%s.dll" % (gfxapi, release_type)
+		src = SOKOL_PATH + "/" + dll_name
+		dest = dll_name
+		copy_file_if_different(src, dest)
 
 	if IS_OSX:
 		dylib_folder = "source/sokol/dylib"
@@ -239,16 +240,7 @@ def build_hot_reload():
 		for d in dylibs:
 			src = "%s/%s" % (dylib_folder, d)
 			dest = "dylib/%s" % d
-			do_copy = False
-
-			if not os.path.exists(dest):
-				do_copy = True
-			elif os.path.getsize(dest) != os.path.getsize(src):
-				do_copy = True
-
-			if do_copy:
-				print("Copying %s to %s" % (src, dest))
-				shutil.copyfile(src, dest)
+			copy_file_if_different(src, dest)
 
 	return "./" + exe
 
@@ -496,6 +488,18 @@ def make_dirs(path):
 
 		if not os.path.exists(p):
 			os.mkdir(p)
+
+def copy_file_if_different(src, dest):
+	do_copy = False
+	if not os.path.exists(dest):
+		do_copy = True
+	elif os.path.getsize(dest) != os.path.getsize(src) or os.path.getmtime(dest) != os.path.getmtime(src):
+		do_copy = True
+
+	if do_copy:
+		print("Copying %s to %s" % (src, dest))
+		shutil.copyfile(src, dest)
+	return
 
 print = functools.partial(print, flush=True)
 
