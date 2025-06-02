@@ -284,7 +284,7 @@ def build_web():
 		odin_extra_args += " -debug"
 
 	print("Building js_wasm32 game object...")
-	execute("odin build source/main_web -target:js_wasm32 -build-mode:obj -vet -strict-style -out:%s/game %s" % (out_dir, odin_extra_args))
+	execute("odin build source/main_web -target:js_wasm32 -build-mode:obj -vet -strict-style -out:%s/game.wasm.o %s" % (out_dir, odin_extra_args))
 	odin_path = subprocess.run(["odin", "root"], capture_output=True, text=True).stdout
 
 	shutil.copyfile(os.path.join(odin_path, "core/sys/wasm/js/odin.js"), os.path.join(out_dir, "odin.js"))
