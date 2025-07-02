@@ -442,20 +442,44 @@ def compile_sokol():
 			print("emcc not in PATH, skipping building of WASM libs. Tip: You can also use -emsdk-path to specify where emscripten lives.")
 		
 	elif IS_OSX:
-		execute("bash build_clibs_macos.sh")
-		execute("bash build_clibs_macos_dylib.sh")
+		# Set environment to use system clang and avoid Homebrew LLVM issues
+		sokol_env = os.environ.copy()
+		
+		# Force use of system clang
+		sokol_env['CC'] = '/usr/bin/clang'
+		sokol_env['CXX'] = '/usr/bin/clang++'
+		
+		# Remove any Homebrew paths from PATH to avoid picking up Homebrew clang
+		if 'PATH' in sokol_env:
+			path_parts = sokol_env['PATH'].split(':')
+			# Filter out common Homebrew paths
+			filtered_paths = [p for p in path_parts if not any(brew_path in p for brew_path in ['/usr/local/bin', '/opt/homebrew/bin', '/usr/local/Cellar', '/opt/homebrew/Cellar'])]
+			# Add system paths at the beginning
+			system_paths = ['/usr/bin', '/bin', '/usr/sbin', '/sbin']
+			final_paths = system_paths + filtered_paths
+			sokol_env['PATH'] = ':'.join(final_paths)
+		
+		execute_with_env("bash build_clibs_macos.sh", sokol_env)
+		execute_with_env("bash build_clibs_macos_dylib.sh", sokol_env)
 		
 		build_wasm_prefix = ""
 		if emsdk_env:
 			os.environ["EMSDK_QUIET"] = "1"
 			build_wasm_prefix += emsdk_env + " && "
+			execute_with_env("bash -c \"" + build_wasm_prefix + " bash build_clibs_wasm.sh\"", sokol_env)
 		elif shutil.which("emcc") is not None:
-			execute("bash -c \"" + build_wasm_prefix + " bash build_clibs_wasm.sh\"")
+			execute_with_env("bash -c \"" + build_wasm_prefix + " bash build_clibs_wasm.sh\"", sokol_env)
 		else:
 			print("emcc not in PATH, skipping building of WASM libs. Tip: You can also use -emsdk-path to specify where emscripten lives.")
 
 	os.chdir(owd)
 
+def execute_with_env(cmd, env):
+	"""Execute command with custom environment"""
+	res = subprocess.run(cmd, shell=True, env=env).returncode
+	if res != 0:
+		print("Failed running:" + cmd)
+		exit(1)
 
 def get_emscripten_env_command():
 	if args.emsdk_path is None:
