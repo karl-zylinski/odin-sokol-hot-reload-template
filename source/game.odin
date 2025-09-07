@@ -155,7 +155,7 @@ game_init :: proc() {
 			})
 
 			g.bind.views[VIEW_tex] = sg.make_view({
-				texture = sg.Texture_View_Desc({image = sg_img})
+				texture = sg.Texture_View_Desc({image = sg_img}),
 			})
 		} else {
 			log.error(img_err)
