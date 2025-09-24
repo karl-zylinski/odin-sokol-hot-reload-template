@@ -146,9 +146,10 @@ game_init :: proc() {
 				width = i32(img.width),
 				height = i32(img.height),
 				data = {
-					subimage = {
+					mip_levels = {
 						0 = {
-							0 = { ptr = raw_data(img.pixels.buf), size = uint(slice.size(img.pixels.buf[:])) },
+							ptr = raw_data(img.pixels.buf),
+							size = uint(slice.size(img.pixels.buf[:])),
 						},
 					},
 				},
