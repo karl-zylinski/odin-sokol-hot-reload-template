@@ -60,7 +60,9 @@ game_app_default_desc :: proc() -> sapp.Desc {
 		window_title = "Odin + Sokol hot reload template",
 		icon = { sokol_default = true },
 		logger = { func = slog.func },
-		html5_update_document_title = true,
+		html5 = {
+			update_document_title = true,
+		},
 	}
 }
 
