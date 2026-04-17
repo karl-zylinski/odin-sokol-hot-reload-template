@@ -1,6 +1,3 @@
-> [!WARNING]
-> This repository is looking for a new maintainer. Do you want to do it? Send me an email: karl@zylinski.se or poke me on Discord: https://discord.gg/4FsHgtBmFK
-
 # Odin + Sokol + Hot Reload template
 
 Hot reload gameplay code when making games using Odin + Sokol. Also comes with web build support (no hot reload on web, it's just for web release builds).
